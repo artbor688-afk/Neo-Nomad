@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nomad Go - 3D Flight</title>
+    
+    <!-- Globe.GL (3D Глобус) -->
+    <script src="https://unpkg.com/globe.gl@2.22.1/dist/globe.gl.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;900&display=swap');
+        
+        body { 
+            font-family: 'Montserrat', sans-serif; 
+            background: #000; 
+            color: white; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+        
+        /* СНЕГ */
+        #snow-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .tiny-emoji { position: absolute; opacity: 0.15; animation: float-around 15s infinite ease-in-out; user-select: none; color: white; }
+        @keyframes float-around { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 33% { transform: translate(15px, -20px) rotate(10deg); } 66% { transform: translate(-10px, 10px) rotate(-10deg); } }
+
+        /* ИНТЕРФЕЙС ГЛОБУСА */
+        #globe-section {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: black;
+        }
+
+        /* Кнопка НАЗАД */
+        .btn-back {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 2px solid white;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 900;
+            cursor: pointer;
+            text-decoration: none;
+            transition: 0.3s;
+        }
+        .btn-back:hover { background: white; color: black; }
+
+        #globe-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(9, 34, 148, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            width: 280px;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+            font-family: sans-serif;
+            color: white;
+        }
+        
+        #globe-controls h3 { margin-top: 0; text-align: center; color: white; }
+        
+        #globe-controls select, #globe-controls button { 
+            width: 100%; 
+            padding: 12px; 
+            margin-top: 10px; 
+            border-radius: 5px; 
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        #globe-controls select { color: black; }
+
+        #globe-controls button { 
+            background: #ffffff; 
+            color: rgb(0, 0, 0); 
+            border: none; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: 0.3s;
+        }
+        #globe-controls button:hover { background: #ccc; }
+        #globe-controls button:disabled { background: #555; cursor: not-allowed; }
+
+        #status-msg { text-align: center; font-weight: bold; margin-bottom: 10px; padding: 5px; border-radius: 4px; background: #eee; color: black; }
+        
+        #globeViz { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+
+    <div id="snow-container"></div>
+
+    <div id="globe-section">
+        <!-- КНОПКА ВОЗВРАТА -->
+        <a href="index.html" class="btn-back">⬅️ Назад к карте</a>
+
+        <div id="globe-controls">
+            <h3>Nomad Global</h3>
+            
+            <div id="status-msg" style="color: orange;">⏳ Загрузка 3D движка...</div>
+
+            <label>Откуда:</label>
+            <select id="start-select">
+                <option value="55.7558,37.6173,Moscow">🇷🇺 Москва</option>
+                <option value="39.9042,116.4074,Beijing">🇨🇳 Пекин</option>
+                <option value="40.7128,-74.0060,New York">🇺🇸 Нью-Йорк</option>
+                <option value="51.5074,-0.1278,London">🇬🇧 Лондон</option>
+                <option value="25.2048,55.2708,Dubai">ae Дубай</option>
+                <option value="34.0522,-118.2437,Los Angeles">🇺🇸 Лос-Анджелес</option>
+                <option value="-33.8688,151.2093,Sydney">au Сидней</option>
+                <option value="42.8746,74.5698,Bishkek">🇰🇬 Бишкек</option>
+                <option value="43.2389,76.8897,Almaty">🇰z Алматы</option>
+                <option value="59.9343,30.3351,St. Petersburg">🇷🇺 Санкт-Петербург</option>
+                <option value="35.6762,139.6503,Tokyo">🇯🇵 Токио</option>
+                <option value="48.8566,2.3522,Paris">🇫🇷 Париж</option>
+                <option value="52.5200,13.4050,Berlin">🇩🇪 Берлин</option>
+                <option value="-22.9068,-43.1729,Rio">🇧🇷 Рио-де-Жанейро</option>
+                <option value="41.0082,28.9784,Istanbul">🇹🇷 Стамбул</option>
+                <option value="30.0444,31.2357,Cairo">🇪🇬 Каир</option>
+                <option value="31.2304,121.4737,Shanghai">🇨🇳 Шанхай</option>
+                <option value="37.5665,126.9780,Seoul">🇰🇷 Сеул</option>
+                <option value="51.1605,71.4704,Astana">🇰z Астана</option>
+                <option value="41.2995,69.2401,Tashkent">🇺z Ташкент</option>
+                <option value="41.9028,12.4964,Rome">🇮🇹 Рим</option>
+                <option value="40.4168,-3.7038,Madrid">🇪🇸 Мадрид</option>
+                <option value="41.3851,2.1734,Barcelona">🇪🇸 Барселона</option>
+                <option value="45.4408,12.3155,Venice">🇮🇹 Венеция</option>
+                <option value="4.1755,73.5093,Maldives">mv Мальдивы</option>
+            </select>
+
+            <label>Куда:</label>
+            <select id="end-select">
+                <option value="55.7558,37.6173,Moscow">🇷🇺 Москва</option>
+                <option value="39.9042,116.4074,Beijing">🇨🇳 Пекин</option>
+                <option value="40.7128,-74.0060,New York">🇺🇸 Нью-Йорк</option>
+                <option value="51.5074,-0.1278,London">🇬🇧 Лондон</option>
+                <option value="25.2048,55.2708,Dubai">ae Дубай</option>
+                <option value="34.0522,-118.2437,Los Angeles">🇺🇸 Лос-Анджелес</option>
+                <option value="-33.8688,151.2093,Sydney">au Сидней</option>
+                <option value="42.8746,74.5698,Bishkek">🇰🇬 Бишкек</option>
+                <option value="43.2389,76.8897,Almaty">🇰z Алматы</option>
+                <option value="59.9343,30.3351,St. Petersburg">🇷🇺 Санкт-Петербург</option>
+                <option value="35.6762,139.6503,Tokyo">🇯🇵 Токио</option>
+                <option value="48.8566,2.3522,Paris">🇫🇷 Париж</option>
+                <option value="52.5200,13.4050,Berlin">🇩🇪 Берлин</option>
+                <option value="-22.9068,-43.1729,Rio">🇧🇷 Рио-де-Жанейро</option>
+                <option value="41.0082,28.9784,Istanbul">🇹🇷 Стамбул</option>
+                <option value="30.0444,31.2357,Cairo">🇪🇬 Каир</option>
+                <option value="31.2304,121.4737,Shanghai">🇨🇳 Шанхай</option>
+                <option value="37.5665,126.9780,Seoul">🇰🇷 Сеул</option>
+                <option value="51.1605,71.4704,Astana">🇰z Астана</option>
+                <option value="41.2995,69.2401,Tashkent">🇺z Ташкент</option>
+                <option value="41.9028,12.4964,Rome">🇮🇹 Рим</option>
+                <option value="40.4168,-3.7038,Madrid">🇪🇸 Мадрид</option>
+                <option value="41.3851,2.1734,Barcelona">🇪🇸 Барселона</option>
+                <option value="45.4408,12.3155,Venice">🇮🇹 Венеция</option>
+                <option value="4.1755,73.5093,Maldives">mv Мальдивы</option>
+            </select>
+
+            <button id="btn-run" onclick="runGlobeRoute()" disabled>Жду загрузки...</button>
+        </div>
+        <div id="globeViz"></div>
+    </div>
+
+    <script>
+        // СНЕГ
+        const emojis = ['🎄', '🍪', '⛄', '🎅', '🎁', '❄️'];
+        const snowContainer = document.getElementById('snow-container');
+        for (let i = 0; i < 50; i++) {
+            const span = document.createElement('span');
+            span.className = 'tiny-emoji';
+            span.innerText = emojis[Math.floor(Math.random() * emojis.length)];
+            span.style.left = Math.random() * 100 + 'vw';
+            span.style.top = Math.random() * 100 + 'vh';
+            span.style.fontSize = (Math.random() * 15 + 10) + 'px';
+            span.style.animationDelay = Math.random() * 10 + 's';
+            snowContainer.appendChild(span);
+        }
+
+        let world;
+        
+        function initGlobe() {
+            const statusDiv = document.getElementById('status-msg');
+            const btn = document.getElementById('btn-run');
+            const container = document.getElementById('globeViz');
+
+            container.innerHTML = '';
+
+            try {
+                world = Globe({
+                    rendererConfig: { 
+                        antialias: false, 
+                        alpha: false, 
+                        precision: 'lowp',
+                        powerPreference: 'high-performance',
+                        failIfMajorPerformanceCaveat: false 
+                    }
+                })
+                .backgroundColor('#000000')
+                .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+                .arcColor(() => ['#ff0000', '#ffffff'])
+                .arcStroke(1.5)
+                .arcDashLength(0.4)
+                .arcDashGap(0.2)
+                .arcDashAnimateTime(2000)
+                .atmosphereAltitude(0) 
+                (container);
+
+                world.pointOfView({ lat: 20, lng: 0, altitude: 2.5 });
+                
+                statusDiv.innerHTML = "✅ ЗАПУЩЕНО (OLD PC MODE)";
+                statusDiv.style.color = "green";
+                btn.disabled = false;
+                btn.innerText = "🚀 ПОЛЕТЕЛИ";
+
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerHTML = "💀 Глобус не выжил";
+                statusDiv.style.color = "red";
+                container.innerHTML = '<div class="flex items-center justify-center h-full" style="color:white; text-align:center;">Ошибка WebGL</div>';
+            }
+        }
+
+        function runGlobeRoute() {
+            try {
+                const startVal = document.getElementById('start-select').value.split(',');
+                const endVal = document.getElementById('end-select').value.split(',');
+
+                const startLoc = { lat: parseFloat(startVal[0]), lng: parseFloat(startVal[1]), name: startVal[2] };
+                const endLoc = { lat: parseFloat(endVal[0]), lng: parseFloat(endVal[1]), name: endVal[2] };
+
+                world.arcsData([]);
+                world.labelsData([]);
+
+                const routeData = [{
+                    startLat: startLoc.lat,
+                    startLng: startLoc.lng,
+                    endLat: endLoc.lat,
+                    endLng: endLoc.lng
+                }];
+
+                world.arcsData(routeData);
+
+                const labelsData = [
+                    { lat: startLoc.lat, lng: startLoc.lng, text: startLoc.name },
+                    { lat: endLoc.lat, lng: endLoc.lng, text: endLoc.name }
+                ];
+
+                world.labelsData(labelsData)
+                    .labelLat(d => d.lat)
+                    .labelLng(d => d.lng)
+                    .labelText(d => d.text)
+                    .labelSize(1.5)
+                    .labelDotRadius(0.8)
+                    .labelColor(() => 'white');
+                    
+                const midLat = (startLoc.lat + endLoc.lat) / 2;
+                const midLng = (startLoc.lng + endLoc.lng) / 2;
+                world.pointOfView({ lat: midLat, lng: midLng, altitude: 2.0 }, 1500);
+
+            } catch (e) {
+                alert("Что-то пошло не так: " + e.message);
+            }
+        }
+
+        window.onload = initGlobe;
+    </script>
+</body>
+</html>
